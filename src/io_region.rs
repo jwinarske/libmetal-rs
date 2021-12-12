@@ -73,7 +73,7 @@ impl<'a> IoRegion<'a> {
 
     /// Return the offset from the base virtual address at a specified address
     fn get_offset_from_address(&self, address: *const u8) -> Result<usize, IoError> {
-        if address < self.virt || address >= self.virt.wrapping_offset(self.size as isize) {
+        if address < self.virt || address >= self.virt.wrapping_add(self.size) {
             return Err(IoError::BadAddress);
         }
         let offset = address.wrapping_sub(self.virt as usize) as usize;
@@ -85,17 +85,18 @@ impl<'a> IoRegion<'a> {
         if offset >= self.size {
             return Err(IoError::BadOffset);
         }
-        return match self.phy_map {
+
+        match self.phy_map {
             None => self.get_virt_address(offset),
             Some(phy_map) => {
                 let page_number = offset >> phy_map.page_shift;
                 let base_address = phy_map.map[page_number] as *const u8;
                 Ok(
-                    base_address.wrapping_offset((offset & phy_map.page_mask()) as isize)
+                    base_address.wrapping_add(offset & phy_map.page_mask())
                         as *const u8,
                 )
             }
-        };
+        }
     }
 
     /// Read a value of type `T` at a specified offset from virt memory
@@ -127,7 +128,7 @@ impl<'a> IoRegion<'a> {
         let base_ptr = ((self.virt as usize) + offset) as *mut u8;
         for i in 0..length {
             unsafe {
-                let ptr = base_ptr.offset(i as isize);
+                let ptr = base_ptr.add(i);
                 ptr.write(value);
             };
         }
